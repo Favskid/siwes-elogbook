@@ -22,7 +22,7 @@ interface AuthContextType {
 }
 
 const MOCK_USERS: User[] = [
-  { id: "s1", name: "Chioma Adaeze Okonkwo", email: "chioma@student.caritas.edu.ng", matricNumber: "CSC/2021/001", department: "Computer Science", role: "student" },
+  { id: "s1", name: "Onye Kachi", email: "Kachi@student.caritas.edu.ng", matricNumber: "CSC/2021/001", department: "Computer Science", role: "student" },
   { id: "s2", name: "Emeka Chukwuemeka", email: "emeka@student.caritas.edu.ng", matricNumber: "CSC/2021/002", department: "Computer Science", role: "student" },
   { id: "s3", name: "Ngozi Ifeanyi", email: "ngozi@student.caritas.edu.ng", matricNumber: "EEE/2021/003", department: "Electrical Engineering", role: "student" },
   { id: "is1", name: "Mr. Babatunde Adeyemi", email: "supervisor@techcorp.com", department: "Engineering", role: "industry_supervisor", company: "TechCorp Nigeria Ltd" },
