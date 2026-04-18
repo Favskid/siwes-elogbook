@@ -67,7 +67,12 @@ export default function CreateLogEntry() {
       };
 
       // Create log entry via API
-      const response = await apiService.createLogEntry(requestData);
+      const createdEntry = await apiService.createLogEntry(requestData);
+
+      // If requested, submit for approval immediately
+      if (!isSaveDraft && createdEntry?.id) {
+        await apiService.submitLogEntry(createdEntry.id);
+      }
 
       setSubmitting(false);
       navigate(`/logbook`);
