@@ -1,99 +1,154 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { apiService, User as ApiUser, LoginRequest, RegisterRequest } from "../services/api";
 
-export type Role = "student" | "industry_supervisor" | "school_supervisor" | "admin";
+export type Role = "student" | "supervisor" | "admin";
 
 export interface User {
   id: string;
   name: string;
   email: string;
-  matricNumber?: string;
+  matric_number?: string;
   department?: string;
   role: Role;
-  company?: string;
-  avatar?: string;
+  phone?: string;
 }
 
 interface AuthContextType {
   user: User | null;
-  login: (credentials: { emailOrMatric: string; password: string; role: Role }) => { success: boolean; error?: string };
-  register: (data: { name: string; email: string; matricNumber: string; department: string; password: string; role: Role; company?: string }) => { success: boolean; error?: string };
-  logout: () => void;
+  login: (credentials: { emailOrMatric: string; password: string; role: Role }) => Promise<{ success: boolean; error?: string; code?: string }>;
+  register: (data: { name: string; email: string; matric_number: string; department: string; password: string; role: Role; phone: string }) => Promise<{ success: boolean; error?: string; code?: string }>;
+  logout: () => Promise<void>;
   isAuthenticated: boolean;
+  isLoading: boolean;
 }
-
-const MOCK_USERS: User[] = [
-  { id: "s1", name: "OnyediKachi", email: "Kachi@student.caritas.edu.ng", matricNumber: "CSC/2021/001", department: "Computer Science", role: "student" },
-  { id: "s2", name: "Emeka Chukwuemeka", email: "emeka@student.caritas.edu.ng", matricNumber: "CSC/2021/002", department: "Computer Science", role: "student" },
-  { id: "s3", name: "Ngozi Ifeanyi", email: "ngozi@student.caritas.edu.ng", matricNumber: "EEE/2021/003", department: "Electrical Engineering", role: "student" },
-  { id: "is1", name: "Mr. Babatunde Adeyemi", email: "supervisor@techcorp.com", department: "Engineering", role: "industry_supervisor", company: "TechCorp Nigeria Ltd" },
-  { id: "ss1", name: "Dr. Patience Eze", email: "patience@caritas.edu.ng", department: "Computer Science", role: "school_supervisor" },
-  { id: "a1", name: "Prof. Emmanuel Okafor", email: "admin@caritas.edu.ng", department: "Administration", role: "admin" },
-];
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    const stored = localStorage.getItem("siwes_user");
-    if (stored) {
-      try { return JSON.parse(stored); } catch { return null; }
-    }
-    return null;
-  });
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
+  // Load user from API on mount if token exists
   useEffect(() => {
-    if (user) {
-      localStorage.setItem("siwes_user", JSON.stringify(user));
-    } else {
-      localStorage.removeItem("siwes_user");
+    if (apiService.isAuthenticated()) {
+      loadCurrentUser();
     }
-  }, [user]);
+  }, []);
 
-  const login = (credentials: { emailOrMatric: string; password: string; role: Role }) => {
-    const found = MOCK_USERS.find(u =>
-      (u.email === credentials.emailOrMatric || u.matricNumber === credentials.emailOrMatric) &&
-      u.role === credentials.role
-    );
-    if (found) {
-      setUser(found);
-      return { success: true };
+  const loadCurrentUser = async () => {
+    try {
+      setIsLoading(true);
+      const response = await apiService.getCurrentUser();
+      const apiUser = response.user;
+      
+      // Map API user to local User type
+      setUser({
+        id: apiUser.id,
+        name: apiUser.name,
+        email: apiUser.email,
+        matric_number: apiUser.matric_number,
+        department: apiUser.department,
+        role: (apiUser.role === 'student' ? 'student' : apiUser.role === 'admin' ? 'admin' : 'supervisor') as Role,
+        phone: apiUser.phone,
+      });
+    } catch (error) {
+      console.error('Failed to load current user:', error);
+      setUser(null);
+    } finally {
+      setIsLoading(false);
     }
-    // Demo: allow any login with matching role if not found (creates mock user)
-    const roleUser = MOCK_USERS.find(u => u.role === credentials.role);
-    if (roleUser && credentials.password === "password123") {
-      setUser(roleUser);
-      return { success: true };
-    }
-    return { success: false, error: "Invalid credentials. Try password: password123" };
   };
 
-  const register = (data: { name: string; email: string; matricNumber: string; department: string; password: string; role: Role; company?: string }) => {
-    const newUser: User = {
-      id: `u_${Date.now()}`,
-      name: data.name,
-      email: data.email,
-      matricNumber: data.matricNumber,
-      department: data.department,
-      role: data.role,
-      company: data.company,
-    };
-    setUser(newUser);
-    return { success: true };
+  const login = async (credentials: { emailOrMatric: string; password: string; role: Role }): Promise<{ success: boolean; error?: string }> => {
+    try {
+      setIsLoading(true);
+      
+      // Map role to API role
+      const apiRole = credentials.role;
+      
+      const response = await apiService.login({
+        emailOrMatric: credentials.emailOrMatric,
+        password: credentials.password,
+        role: apiRole as any,
+      });
+
+      const apiUser = response.user;
+      setUser({
+        id: apiUser.id,
+        name: apiUser.name,
+        email: apiUser.email,
+        matric_number: apiUser.matric_number,
+        department: apiUser.department,
+        role: (apiUser.role === 'student' ? 'student' : apiUser.role === 'admin' ? 'admin' : 'supervisor') as Role,
+        phone: apiUser.phone,
+      });
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('Login error:', error);
+      return { 
+        success: false, 
+        error: error.message || (error.status === 401 ? 'Invalid credentials' : 'Login failed'),
+        code: error.code
+      };
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const logout = () => {
-    setUser(null);
+  const register = async (data: { name: string; email: string; matric_number: string; department: string; password: string; role: Role; phone: string }): Promise<{ success: boolean; error?: string }> => {
+    try {
+      setIsLoading(true);
+      
+      const response = await apiService.register({
+        name: data.name,
+        email: data.email,
+        password: data.password,
+        role: data.role as any,
+        matric_number: data.matric_number,
+        department: data.department,
+        phone: data.phone,
+      });
+
+      // Don't auto-login after registration - require user to login
+      return { success: true };
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      return { 
+        success: false, 
+        error: error.message || 'Registration failed',
+        code: error.code
+      };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      setIsLoading(true);
+      await apiService.logout();
+      setUser(null);
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Still clear user even if logout fails
+      setUser(null);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, login, register, logout, isAuthenticated: !!user, isLoading }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
 export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used within AuthProvider");
+  }
+  return context;
 }

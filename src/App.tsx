@@ -43,7 +43,7 @@ function ProtectedRoutes() {
         )}
 
         {/* Supervisor routes */}
-        {(role === "industry_supervisor" || role === "school_supervisor") && (
+        {role === "supervisor" && (
           <>
             <Route path="/dashboard" component={SupervisorDashboard} />
             <Route path="/students" component={SupervisorDashboard} />

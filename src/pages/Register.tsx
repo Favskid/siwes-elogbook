@@ -1,11 +1,12 @@
 import { useState, FormEvent } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth, Role } from "../context/AuthContext";
+import { useError } from "../hooks/useError";
+import ErrorAlert from "../components/ErrorAlert";
 
 const ROLES: { value: Role; label: string }[] = [
   { value: "student", label: "Student" },
-  { value: "industry_supervisor", label: "Industry Supervisor" },
-  { value: "school_supervisor", label: "School Supervisor" },
+  { value: "supervisor", label: "Supervisor" },
   { value: "admin", label: "Administrator" },
 ];
 
@@ -15,43 +16,58 @@ export default function Register() {
   const [form, setForm] = useState({
     name: "",
     email: "",
-    matricNumber: "",
+    matric_number: "",
     department: "",
-    company: "",
+    phone: "",
     password: "",
     confirmPassword: "",
     role: "student" as Role,
   });
-  const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { error, message, handleError, clearError } = useError();
 
   const set = (k: string, v: string) => setForm(prev => ({ ...prev, [k]: v }));
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setError("");
+    clearError();
     if (form.password !== form.confirmPassword) {
-      setError("Passwords do not match");
+      handleError({
+        response: {
+          status: 400,
+          data: { error: "REGISTER_PASSWORD_MISMATCH", message: "Passwords do not match" },
+        },
+      } as any);
       return;
     }
     setLoading(true);
-    setTimeout(() => {
-      const result = register({
+    try {
+      const result = await register({
         name: form.name,
         email: form.email,
-        matricNumber: form.matricNumber,
+        matric_number: form.matric_number,
         department: form.department,
         password: form.password,
         role: form.role,
-        company: form.company,
+        phone: form.phone,
       });
-      setLoading(false);
       if (result.success) {
-        navigate("/dashboard");
+        navigate("/login");
       } else {
-        setError(result.error || "Registration failed");
+        handleError({
+          response: {
+            status: 400,
+            data: { error: result.error || "Registration failed" },
+          },
+        } as any);
       }
-    }, 600);
+    } catch (err: any) {
+      handleError(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const departments = ["Computer Science", "Electrical Engineering", "Mechanical Engineering", "Civil Engineering", "Chemical Engineering", "Mass Communication", "Business Administration", "Accounting", "Law", "Medicine"];
@@ -139,26 +155,15 @@ export default function Register() {
                   <label className="block text-sm font-medium text-foreground mb-1.5">Matric Number</label>
                   <input
                     type="text"
-                    value={form.matricNumber}
-                    onChange={e => set("matricNumber", e.target.value)}
+                    value={form.matric_number}
+                    onChange={e => set("matric_number", e.target.value)}
                     placeholder="e.g. CSC/2021/001"
                     className="w-full px-3 py-2.5 bg-background border border-input rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    required
                   />
                 </div>
               )}
-              {form.role === "industry_supervisor" && (
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">Company/Organization</label>
-                  <input
-                    type="text"
-                    value={form.company}
-                    onChange={e => set("company", e.target.value)}
-                    placeholder="Your company name"
-                    className="w-full px-3 py-2.5 bg-background border border-input rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
-                </div>
-              )}
-              <div className={form.role === "student" || form.role === "industry_supervisor" ? "" : "col-span-2"}>
+              <div className="col-span-2">
                 <label className="block text-sm font-medium text-foreground mb-1.5">Department</label>
                 <select
                   value={form.department}
@@ -170,34 +175,73 @@ export default function Register() {
                   {departments.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">Password</label>
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-foreground mb-1.5">Phone Number</label>
                 <input
-                  type="password"
-                  value={form.password}
-                  onChange={e => set("password", e.target.value)}
-                  placeholder="Create a password"
+                  type="tel"
+                  value={form.phone}
+                  onChange={e => set("phone", e.target.value)}
+                  placeholder="Your phone number"
                   className="w-full px-3 py-2.5 bg-background border border-input rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   required
                 />
               </div>
               <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Password</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={form.password}
+                    onChange={e => set("password", e.target.value)}
+                    placeholder="Create a password"
+                    className="w-full px-3 py-2.5 bg-background border border-input rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring pr-10"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                    )}
+                  </button>
+                </div>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">Confirm Password</label>
-                <input
-                  type="password"
-                  value={form.confirmPassword}
-                  onChange={e => set("confirmPassword", e.target.value)}
-                  placeholder="Repeat your password"
-                  className="w-full px-3 py-2.5 bg-background border border-input rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                  required
-                />
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={form.confirmPassword}
+                    onChange={e => set("confirmPassword", e.target.value)}
+                    placeholder="Repeat your password"
+                    className="w-full px-3 py-2.5 bg-background border border-input rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring pr-10"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showConfirmPassword ? (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
 
             {error && (
-              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 text-sm text-destructive">
-                {error}
-              </div>
+              <ErrorAlert
+                message={message}
+                onDismiss={clearError}
+                variant="error"
+              />
             )}
 
             <button

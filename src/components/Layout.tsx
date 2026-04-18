@@ -63,8 +63,8 @@ const ALL_NAV: NavItem[] = [
   { label: "Dashboard", path: "/dashboard", icon: <HomeIcon />, roles: ["student"] },
   { label: "My Logbook", path: "/logbook", icon: <BookIcon />, roles: ["student"] },
   { label: "New Entry", path: "/log/new", icon: <PlusIcon />, roles: ["student"] },
-  { label: "Dashboard", path: "/dashboard", icon: <HomeIcon />, roles: ["industry_supervisor", "school_supervisor"] },
-  { label: "My Students", path: "/students", icon: <UsersIcon />, roles: ["industry_supervisor", "school_supervisor"] },
+  { label: "Dashboard", path: "/dashboard", icon: <HomeIcon />, roles: ["supervisor"] },
+  { label: "My Students", path: "/students", icon: <UsersIcon />, roles: ["supervisor"] },
   { label: "Dashboard", path: "/dashboard", icon: <HomeIcon />, roles: ["admin"] },
   { label: "All Users", path: "/admin/users", icon: <UsersIcon />, roles: ["admin"] },
   { label: "Reports", path: "/admin/reports", icon: <ChartIcon />, roles: ["admin"] },
@@ -73,8 +73,7 @@ const ALL_NAV: NavItem[] = [
 function getRoleLabel(role: string) {
   switch (role) {
     case "student": return "Student";
-    case "industry_supervisor": return "Industry Supervisor";
-    case "school_supervisor": return "School Supervisor";
+    case "supervisor": return "Supervisor";
     case "admin": return "Administrator";
     default: return role;
   }
@@ -197,10 +196,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {user?.matricNumber && (
               <div className="text-xs text-muted-foreground hidden sm:block">{user.matricNumber} • {user.department}</div>
             )}
-            {user?.company && (
-              <div className="text-xs text-muted-foreground hidden sm:block">{user.company}</div>
-            )}
-            {user && !user.matricNumber && !user.company && (
+            {user && !user.matricNumber && (
               <div className="text-xs text-muted-foreground hidden sm:block">{user.department} • {getRoleLabel(user.role)}</div>
             )}
           </div>

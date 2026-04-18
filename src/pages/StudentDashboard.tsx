@@ -1,6 +1,7 @@
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { useAuth } from "../context/AuthContext";
-import { useData } from "../context/DataContext";
+import { apiService, StudentDashboard as StudentDashboardData, LogEntry } from "../services/api";
 import StatusBadge from "../components/StatusBadge";
 
 function ProgressBar({ value, max }: { value: number; max: number }) {
@@ -44,18 +45,91 @@ function formatDate(d: string) {
 }
 
 export default function StudentDashboard() {
-  const { user } = useAuth();
-  const { getStudentEntries } = useData();
+  const { user, isAuthenticated } = useAuth();
+  const [dashboard, setDashboard] = useState<StudentDashboardData | null>(null);
+  const [recentEntries, setRecentEntries] = useState<LogEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const entries = user ? getStudentEntries(user.id) : [];
-  const approved = entries.filter(e => e.status === "approved").length;
-  const pending = entries.filter(e => e.status === "pending").length;
-  const rejected = entries.filter(e => e.status === "rejected").length;
-  const draft = entries.filter(e => e.status === "draft").length;
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchDashboard();
+    }
+  }, [isAuthenticated]);
 
-  const uniqueWeeks = new Set(entries.map(e => e.weekNumber)).size;
-  const totalWeeks = 24;
-  const recent = entries.slice(0, 5);
+  const fetchDashboard = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Fetch dashboard stats
+      const dashResponse = await apiService.getStudentDashboard();
+      setDashboard(dashResponse.data);
+
+      // We can use the recent entries from the dashboard response
+      if (dashResponse.data.recentEntries) {
+        setRecentEntries(dashResponse.data.recentEntries);
+      } else {
+        // Fallback to separate fetch if needed
+        const entriesResponse = await apiService.listLogEntries({ page: 1, limit: 5 });
+        setRecentEntries(entriesResponse.data || []);
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch dashboard:', err);
+      setError(err.message || 'Failed to load dashboard');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="text-center">
+        <p className="text-muted-foreground">Please log in to view your dashboard</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-muted border-t-primary rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+        <h2 className="font-semibold text-red-900 mb-2">Error Loading Dashboard</h2>
+        <p className="text-red-800 text-sm">{error}</p>
+        <button
+          onClick={fetchDashboard}
+          className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (!dashboard) {
+    return null;
+  }
+
+  // Extract stats from dashboard
+  const totalEntries = dashboard.stats.total || 0;
+  const approved = dashboard.stats.approved || 0;
+  const pending = dashboard.stats.pending || 0;
+  const rejected = dashboard.stats.rejected || 0;
+  const draft = dashboard.stats.draft || 0;
+  const submitted = totalEntries - draft;
+  
+  // Calculate weeks logged (assuming 2 entries per week on average)
+  const weeksLogged = Math.round(submitted / 2) || 0;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -64,7 +138,7 @@ export default function StudentDashboard() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-xl font-bold">Welcome back, {user?.name.split(" ")[0]}!</h1>
-            <p className="text-white/60 text-sm mt-1">{user?.department} • {user?.matricNumber}</p>
+            <p className="text-white/60 text-sm mt-1">{user?.department} • {user?.matric_number}</p>
           </div>
           <Link
             href="/log/new"
@@ -77,7 +151,7 @@ export default function StudentDashboard() {
           </Link>
         </div>
         <div className="mt-6">
-          <ProgressBar value={uniqueWeeks} max={totalWeeks} />
+          <ProgressBar value={weeksLogged} max={24} />
         </div>
       </div>
 
@@ -85,7 +159,7 @@ export default function StudentDashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="Total Entries"
-          value={entries.length}
+          value={totalEntries}
           color="bg-blue-100 text-blue-700"
           icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>}
         />
@@ -109,13 +183,29 @@ export default function StudentDashboard() {
         />
       </div>
 
+      {/* Supervisor info from user object fallback */}
+      {user?.supervisor_name && (
+        <div className="bg-card border border-card-border rounded-xl p-5">
+          <h2 className="font-semibold text-foreground mb-3">Your Supervisor</h2>
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+              <span className="text-sm font-bold text-primary">{user.supervisor_name.split(" ").map(n => n[0]).join("").slice(0, 2)}</span>
+            </div>
+            <div>
+              <div className="font-medium text-foreground">{user.supervisor_name}</div>
+              <div className="text-sm text-muted-foreground">Assigned Supervisor</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Recent entries */}
       <div className="bg-card border border-card-border rounded-xl overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <h2 className="font-semibold text-foreground">Recent Log Entries</h2>
           <Link href="/logbook" className="text-sm text-primary hover:underline font-medium">View all</Link>
         </div>
-        {recent.length === 0 ? (
+        {recentEntries.length === 0 ? (
           <div className="p-12 text-center text-muted-foreground">
             <svg className="w-10 h-10 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -125,7 +215,7 @@ export default function StudentDashboard() {
           </div>
         ) : (
           <div className="divide-y divide-border">
-            {recent.map(entry => (
+            {recentEntries.map(entry => (
               <Link
                 key={entry.id}
                 href={`/log/${entry.id}`}
@@ -133,15 +223,15 @@ export default function StudentDashboard() {
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-medium text-foreground">Week {entry.weekNumber}</span>
+                    <span className="text-sm font-medium text-foreground">Week {entry.week_number}</span>
                     <StatusBadge status={entry.status} />
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{entry.activityDescription.slice(0, 80)}...</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{entry.activity_description?.slice(0, 80) || "No description"}...</p>
                 </div>
                 <div className="text-xs text-muted-foreground shrink-0 text-right">
                   <div>{formatDate(entry.date)}</div>
-                  {entry.evidenceFiles.length > 0 && (
-                    <div className="mt-1 text-muted-foreground/70">{entry.evidenceFiles.length} file{entry.evidenceFiles.length > 1 ? "s" : ""}</div>
+                  {entry.files && entry.files.length > 0 && (
+                    <div className="mt-1 text-muted-foreground/70">{entry.files.length} file{entry.files.length > 1 ? "s" : ""}</div>
                   )}
                 </div>
                 <svg className="w-4 h-4 text-muted-foreground shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
