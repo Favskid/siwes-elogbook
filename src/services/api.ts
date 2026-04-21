@@ -174,7 +174,7 @@ export interface AdminDashboard {
 
 class APIService {
   private axiosInstance: AxiosInstance;
-  private apiBaseUrl: string = 'http://localhost:3000/api';
+  private apiBaseUrl: string = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
   private accessToken: string | null = null;
   private refreshToken: string | null = null;
   private tokenRefreshPromise: Promise<string> | null = null;
@@ -185,7 +185,7 @@ class APIService {
     general: { count: 0, resetTime: 0 }
   };
 
-  constructor(baseURL: string = 'http://localhost:3000/api') {
+  constructor(baseURL: string = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api') {
     this.apiBaseUrl = baseURL;
     
     this.axiosInstance = axios.create({
