@@ -149,14 +149,23 @@ export interface SupervisorDashboard {
 }
 
 export interface AdminDashboard {
-  total_users: number;
-  total_entries: number;
-  approved_entries: number;
-  pending_entries: number;
-  rejected_entries: number;
-  total_supervisors: number;
-  total_students: number;
-  active_users_today: number;
+  users: {
+    total: number;
+    students: number;
+  };
+  logEntries: {
+    total: number;
+    approved: number;
+    pending: number;
+    rejected: number;
+  };
+  notifications: {
+    total: number;
+  };
+  files: {
+    total: number;
+    totalSize: number;
+  };
 }
 
 // ============================================================================
@@ -207,6 +216,7 @@ class APIService {
         // Skip intercepting 401s if the request is an auth endpoint itself
         const isAuthEndpoint = originalRequest?.url?.includes('/auth/login') || 
                                originalRequest?.url?.includes('/auth/register') || 
+                               originalRequest?.url?.includes('/auth/logout') ||
                                originalRequest?.url?.includes('/auth/refresh-token');
 
         if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
@@ -603,19 +613,6 @@ class APIService {
   }
 
   /**
-   * Get supervisor dashboard
-   */
-  async getSupervisorDashboard(): Promise<{ success: boolean; data: SupervisorDashboard }> {
-    try {
-      this.checkRateLimit('general');
-      const response = await this.axiosInstance.get('/supervisors/dashboard');
-      return response.data;
-    } catch (error) {
-      this.handleError(error);
-    }
-  }
-
-  /**
    * Get entries assigned to supervisor
    */
   async getAssignedEntries(
@@ -641,6 +638,19 @@ class APIService {
     try {
       this.checkRateLimit('general');
       const response = await this.axiosInstance.put(`/supervisors/entries/${entryId}/approve`, { comment });
+      return response.data;
+    } catch (error) {
+      this.handleError(error);
+    }
+  }
+
+  /**
+   * Bulk approve log entries
+   */
+  async bulkApproveEntries(entryIds: string[], comment: string): Promise<{ message: string; count: number }> {
+    try {
+      this.checkRateLimit('general');
+      const response = await this.axiosInstance.put('/supervisors/entries/bulk-approve', { entryIds, comment });
       return response.data;
     } catch (error) {
       this.handleError(error);
@@ -686,7 +696,7 @@ class APIService {
     try {
       this.checkRateLimit('general');
       const response = await this.axiosInstance.get(`/supervisors/students/${studentId}/progress`);
-      return response.data;
+      return response.data.data || response.data;
     } catch (error) {
       this.handleError(error);
     }
@@ -717,8 +727,8 @@ class APIService {
       this.checkRateLimit('general');
       const response = await this.axiosInstance.get('/admin/users', { params });
       return {
-        data: response.data.users,
-        pagination: response.data.pagination
+        data: response.data.data.users,
+        pagination: response.data.data.pagination
       };
     } catch (error) {
       this.handleError(error);
@@ -772,8 +782,8 @@ class APIService {
       this.checkRateLimit('general');
       const response = await this.axiosInstance.get('/admin/departments', { params });
       return {
-        data: response.data.departments,
-        pagination: response.data.pagination
+        data: response.data.data,
+        pagination: response.data.pagination || { total: response.data.data.length, page: 1, limit: 100, pages: 1 }
       };
     } catch (error) {
       this.handleError(error);
@@ -828,9 +838,10 @@ class APIService {
     try {
       this.checkRateLimit('general');
       const response = await this.axiosInstance.get('/admin/log-entries', { params });
+      const payload = response.data.data || response.data;
       return {
-        data: response.data.entries,
-        pagination: response.data.pagination
+        data: payload.entries || [],
+        pagination: payload.pagination || { total: 0, page: 1, limit: 10, pages: 1 }
       };
     } catch (error) {
       this.handleError(error);
