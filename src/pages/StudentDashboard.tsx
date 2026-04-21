@@ -82,6 +82,16 @@ export default function StudentDashboard() {
     }
   };
 
+  const handleMarkAsRead = async (notificationId: string) => {
+    try {
+      await apiService.markNotificationAsRead(notificationId);
+      // Refresh dashboard to get updated notifications
+      fetchDashboard();
+    } catch (err) {
+      console.error('Failed to mark notification as read:', err);
+    }
+  };
+
   if (!isAuthenticated) {
     return (
       <div className="text-center">
@@ -154,6 +164,34 @@ export default function StudentDashboard() {
           <ProgressBar value={weeksLogged} max={24} />
         </div>
       </div>
+
+      {/* Unread Notifications */}
+      {dashboard.unreadNotifications?.items && dashboard.unreadNotifications.items.length > 0 && (
+        <div className="space-y-3">
+          {dashboard.unreadNotifications.items.map((notif: any) => (
+            <div key={notif.id} className="bg-primary/10 border border-primary/20 rounded-xl p-4 flex items-start gap-4">
+              <div className="w-10 h-10 rounded-full bg-primary/20 flex flex-shrink-0 items-center justify-center mt-0.5">
+                <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-bold text-foreground">{notif.title}</h3>
+                <p className="text-sm text-foreground/80 mt-1">{notif.message}</p>
+                <div className="text-[10px] text-muted-foreground mt-2 uppercase font-semibold">
+                  {new Date(notif.created_at).toLocaleString()}
+                </div>
+              </div>
+              <button 
+                onClick={() => handleMarkAsRead(notif.id)}
+                className="text-xs bg-background text-primary px-3 py-1.5 rounded-lg border border-primary/20 font-semibold hover:bg-primary hover:text-white transition-colors flex-shrink-0 whitespace-nowrap"
+              >
+                Mark as read
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
